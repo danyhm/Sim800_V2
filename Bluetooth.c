@@ -1,6 +1,6 @@
 #include "Sim80x.h"
 
-#if (_SIM80X_USE_BLUETOOTH==1)
+#if(_SIM80X_USE_BLUETOOTH==1)
 //#################################################################################################################
 bool  Bluetooth_SetPower(bool TurnOn)
 {
@@ -11,7 +11,11 @@ bool  Bluetooth_SetPower(bool TurnOn)
   {
     if(Sim80x.Bluetooth.Status == BluetoothStatus_Initial)
     {
-      answer = Sim80x_SendAtCommand("AT+BTPOWER=1\r\n",5000,2,"\r\nOK\r\n","\r\nERROR\r\n");
+			#if(_SIM80X_Quectel_Mode==0)
+				answer = Sim80x_SendAtCommand("AT+BTPOWER=1\r\n",5000,2,"\r\nOK\r\n","\r\nERROR\r\n");	
+			#else
+				answer = Sim80x_SendAtCommand("AT+QBTPWR=1\r\n",5000,2,"\r\nOK\r\n","\r\nERROR\r\n");
+			#endif
       if(answer == 1)
       {
         for(uint8_t i=0 ;i<50 ;i++)
@@ -40,7 +44,11 @@ bool  Bluetooth_SetPower(bool TurnOn)
     for(uint8_t i=0 ;i<50 ;i++)
     {
       osDelay(100);
-      answer = Sim80x_SendAtCommand("AT+BTPOWER=0\r\n",5000,2,"\r\nOK\r\n","\r\nERROR\r\n");
+			#if(_SIM80X_Quectel_Mode==0)
+				answer = Sim80x_SendAtCommand("AT+BTPOWER=0\r\n",5000,2,"\r\nOK\r\n","\r\nERROR\r\n");	
+			#else
+				answer = Sim80x_SendAtCommand("AT+QBTPWR=0\r\n",5000,2,"\r\nOK\r\n","\r\nERROR\r\n");
+			#endif
       if(Bluetooth_GetStatus()==BluetoothStatus_Initial)
       {
         Bluetooth_GetStatus();
@@ -57,7 +65,11 @@ bool  Bluetooth_GetHostName(void)
   uint8_t answer;
   memset(Sim80x.Bluetooth.HostName,0,sizeof(Sim80x.Bluetooth.HostName));
   memset(Sim80x.Bluetooth.HostAddress,0,sizeof(Sim80x.Bluetooth.HostAddress));
-  answer = Sim80x_SendAtCommand("AT+BTHOST?\r\n",1000,1,"\r\n+BTHOST:");
+	#if(_SIM80X_Quectel_Mode==0)
+		answer = Sim80x_SendAtCommand("AT+BTHOST?\r\n",1000,1,"\r\n+BTHOST:");
+	#else
+		answer = Sim80x_SendAtCommand("AT+QBTNAME?\r\n",1000,1,"\r\n+QBTNAME:");
+	#endif
   if((answer == 1) && (Sim80x.Bluetooth.HostName[0] != 0) && (Sim80x.Bluetooth.HostAddress[0] != 0))
     return true;
   else
@@ -69,8 +81,13 @@ bool  Bluetooth_SetHostName(char *HostName)
   uint8_t answer;
   char  str[32];
   char  strParam[32];
-  snprintf(str,sizeof(str),"AT+BTHOST=%s\r\n",HostName);
-  snprintf(strParam,sizeof(strParam),"AT+BTHOST=%s\r\r\nOK\r\n",HostName);
+	#if(_SIM80X_Quectel_Mode==0)
+		snprintf(str,sizeof(str),"AT+BTHOST=%s\r\n",HostName);
+		snprintf(strParam,sizeof(strParam),"AT+BTHOST=%s\r\r\nOK\r\n",HostName);
+	#else
+		snprintf(str,sizeof(str),"AT+QBTNAME=%s\r\n",HostName);
+		snprintf(strParam,sizeof(strParam),"AT+QBTNAME=%s\r\r\nOK\r\n",HostName);
+	#endif
   answer = Sim80x_SendAtCommand(str,1000,1,strParam);
   if(answer == 1)
   {
@@ -84,7 +101,10 @@ bool  Bluetooth_SetHostName(char *HostName)
 BluetoothStatus_t  Bluetooth_GetStatus(void)
 {
   uint8_t answer;
-  answer = Sim80x_SendAtCommand("AT+BTSTATUS?\r\n",1000,1,"\r\n+BTSTATUS:");
+	#if(_SIM80X_Quectel_Mode==0)
+		answer = Sim80x_SendAtCommand("AT+BTSTATUS?\r\n",1000,1,"\r\n+BTSTATUS:");
+	#else
+	#endif
   if(answer == 1)
     return Sim80x.Bluetooth.Status;
   else

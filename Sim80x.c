@@ -1,4 +1,3 @@
-
 #include "Sim80X.h"
 #include "Sim80XConfig.h"
 
@@ -13,7 +12,7 @@ void 	        StartSim80xBuffTask(void const * argument);
 void	Sim80x_SendString(char *str)
 {
   HAL_UART_Receive_IT(&_SIM80X_USART,&Sim80x.UsartRxTemp,1);	
-  #if (_SIM80X_DMA_TRANSMIT==1)
+  #if(_SIM80X_DMA_TRANSMIT==1)
 	while(_SIM80X_USART.hdmatx->State != HAL_DMA_STATE_READY)
 		osDelay(10);
 	HAL_UART_Transmit_DMA(&_SIM80X_USART,(uint8_t*)str,strlen(str));
@@ -28,7 +27,7 @@ void	Sim80x_SendString(char *str)
 void  Sim80x_SendRaw(uint8_t *Data,uint16_t len)
 {
   HAL_UART_Receive_IT(&_SIM80X_USART,&Sim80x.UsartRxTemp,1);	
-  #if (_SIM80X_DMA_TRANSMIT==1)
+  #if(_SIM80X_DMA_TRANSMIT==1)
 	while(_SIM80X_USART.hdmatx->State != HAL_DMA_STATE_READY)
 		osDelay(10);
 	HAL_UART_Transmit_DMA(&_SIM80X_USART,Data,len);
@@ -103,24 +102,32 @@ void  Sim80x_InitValue(void)
   Sim80x_SendAtCommand("ATE1\r\n",200,1,"ATE1\r\r\nOK\r\n");
   Sim80x_SendAtCommand("AT+COLP=1\r\n",200,1,"AT+COLP=1\r\r\nOK\r\n");
   Sim80x_SendAtCommand("AT+CLIP=1\r\n",200,1,"AT+CLIP=1\r\r\nOK\r\n");
-  Sim80x_SendAtCommand("AT+FSHEX=0\r\n",200,1,"AT+FSHEX=0\r\r\nOK\r\n");
-  Sim80x_SendAtCommand("AT+CREG=1\r\n",200,1,"AT+CREG=1\r\r\nOK\r\n");
-  Sim80x_SendAtCommand("AT+ECHO?\r\n",200,1,"\r\nOK\r\n");
+	#if(_SIM80X_Quectel_Mode==0)
+		Sim80x_SendAtCommand("AT+FSHEX=0\r\n",200,1,"AT+FSHEX=0\r\r\nOK\r\n"); //@TODO inspect possible equivelant for quectel
+	#endif
+	Sim80x_SendAtCommand("AT+CREG=1\r\n",200,1,"AT+CREG=1\r\r\nOK\r\n");
+	#if(_SIM80X_Quectel_Mode==0)
+		Sim80x_SendAtCommand("AT+ECHO?\r\n",200,1,"\r\nOK\r\n"); 							 //@TODO inspect possible equivelant for quectel
+	#endif
   Gsm_MsgSetMemoryLocation(GsmMsgMemory_OnModule);
   Gsm_MsgSetFormat(GsmMsgFormat_Text);
   Gsm_MsgSetTextModeParameter(17,167,0,0);
   Gsm_MsgGetCharacterFormat();
+	if(Sim80x.Gsm.TeCharacterFormat != GsmTECharacterSet_GSM)
+		Gsm_MsgSetCharacterFormat(GsmTECharacterSet_GSM);
   Gsm_MsgGetFormat();
   if(Sim80x.Gsm.MsgFormat != GsmMsgFormat_Text)
     Gsm_MsgSetFormat(GsmMsgFormat_Text);
   Gsm_MsgGetServiceNumber();
   Gsm_MsgGetTextModeParameter();
-  Sim80x_GetIMEI(NULL);
-  Sim80x_GetLoadVol();
+  Sim80x_GetIMEI();
+  Sim80x_GetLoudVol();
   Sim80x_GetRingVol();
   Sim80x_GetMicGain();
+	#if(_SIM80X_Quectel_Mode==0)
   Sim80x_GetToneVol();
-  #if (_SIM80X_USE_BLUETOOTH==1)
+	#endif
+  #if(_SIM80X_USE_BLUETOOTH==1)
   Bluetooth_SetAutoPair(true);
   #endif
   Sim80x_SendAtCommand("AT+CREG?\r\n",200,1,"\r\n+CREG:");  
@@ -130,8 +137,8 @@ void  Sim80x_InitValue(void)
 void   Sim80x_SaveParameters(void)
 {
   Sim80x_SendAtCommand("AT&W\r\n",1000,1,"AT&W\r\r\nOK\r\n");
-  #if (_SIM80X_DEBUG==1)
-  printf("\r\Sim80x_SaveParameters() ---> OK\r\n");
+  #if(_SIM80X_DEBUG==1)
+  printf("\r\nSim80x_SaveParameters() ---> OK\r\n");
   #endif
 }
 //######################################################################################################################
@@ -142,7 +149,7 @@ void  Sim80x_SetPower(bool TurnOn)
     if(Sim80x_SendAtCommand("AT\r\n",200,1,"AT\r\r\nOK\r\n") == 1)
     {
       osDelay(100);
-      #if (_SIM80X_DEBUG==1)
+      #if(_SIM80X_DEBUG==1)
       printf("\r\nSim80x_SetPower(ON) ---> OK\r\n");
       #endif
       Sim80x.Status.Power=1;
@@ -150,7 +157,7 @@ void  Sim80x_SetPower(bool TurnOn)
     }
     else
     {     
-      #if (_SIM80X_USE_POWER_KEY==1)  
+      #if(_SIM80X_USE_POWER_KEY==1)  
       HAL_GPIO_WritePin(_SIM80X_POWER_KEY_GPIO,_SIM80X_POWER_KEY_PIN,GPIO_PIN_RESET);
       osDelay(1200);
       HAL_GPIO_WritePin(_SIM80X_POWER_KEY_GPIO,_SIM80X_POWER_KEY_PIN,GPIO_PIN_SET);
@@ -159,7 +166,7 @@ void  Sim80x_SetPower(bool TurnOn)
       if(Sim80x_SendAtCommand("AT\r\n",200,1,"AT\r\r\nOK\r\n") == 1)
       {
         osDelay(10000);
-        #if (_SIM80X_DEBUG==1)
+        #if(_SIM80X_DEBUG==1)
         printf("\r\nSim80x_SetPower(ON) ---> OK\r\n");
         #endif
         Sim80x.Status.Power=1;
@@ -173,16 +180,16 @@ void  Sim80x_SetPower(bool TurnOn)
   {
     if(Sim80x_SendAtCommand("AT\r\n",200,1,"AT\r\r\nOK\r\n") == 1)
     {
-      #if (_SIM80X_DEBUG==1)
+      #if(_SIM80X_DEBUG==1)
       printf("\r\nSim80x_SetPower(OFF) ---> OK\r\n");
       #endif
       Sim80x.Status.Power=0;
-      #if (_SIM80X_USE_POWER_KEY==1) 
+      #if(_SIM80X_USE_POWER_KEY==1) 
       HAL_GPIO_WritePin(_SIM80X_POWER_KEY_GPIO,_SIM80X_POWER_KEY_PIN,GPIO_PIN_RESET);
       osDelay(1200);
       HAL_GPIO_WritePin(_SIM80X_POWER_KEY_GPIO,_SIM80X_POWER_KEY_PIN,GPIO_PIN_SET);
       #endif
-      #if (_SIM80X_USE_POWER_KEY==0)
+      #if(_SIM80X_USE_POWER_KEY==0)
       Sim80x_SendAtCommand("AT+CPOWD=1\r\n",2000,1,"\r\nOK\r\n"); 
       #endif      
     }
@@ -192,15 +199,15 @@ void  Sim80x_SetPower(bool TurnOn)
 void Sim80x_SetFactoryDefault(void)
 {
   Sim80x_SendAtCommand("AT&F0\r\n",1000,1,"AT&F0\r\r\nOK\r\n");
-  #if (_SIM80X_DEBUG==1)
+  #if(_SIM80X_DEBUG==1)
   printf("\r\nSim80x_SetFactoryDefault() ---> OK\r\n");
   #endif
 }
 //######################################################################################################################
-void  Sim80x_GetIMEI(char *IMEI)
+void  Sim80x_GetIMEI(void)
 {
   Sim80x_SendAtCommand("AT+GSN\r\n",1000,1,"\r\nOK\r\n");
-  #if (_SIM80X_DEBUG==1)
+  #if(_SIM80X_DEBUG==1)
   printf("\r\nSim80x_GetIMEI(%s) <--- OK\r\n",Sim80x.IMEI);
   #endif
 }
@@ -211,14 +218,14 @@ uint8_t  Sim80x_GetRingVol(void)
   answer=Sim80x_SendAtCommand("AT+CRSL?\r\n",1000,2,"\r\nOK\r\n","\r\n+CME ERROR:");
   if(answer==1)
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_GetRingVol(%d) <--- OK\r\n",Sim80x.RingVol);
     #endif    
     return Sim80x.RingVol;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_GetRingVol() <--- ERROR\r\n");
     #endif    
     return 0;
@@ -234,41 +241,41 @@ bool  Sim80x_SetRingVol(uint8_t Vol_0_to_100)
   if(answer==1)
   {
     Sim80x.RingVol=Vol_0_to_100;
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_SetRingVol(%d) ---> OK\r\n",Sim80x.RingVol);
     #endif    
     return true;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_SetRingVol(%d) ---> ERROR\r\n",Sim80x.RingVol);
     #endif    
     return false;
   }
 }
 //######################################################################################################################
-uint8_t  Sim80x_GetLoadVol(void)
+uint8_t  Sim80x_GetLoudVol(void)
 {
   uint8_t answer;
   answer=Sim80x_SendAtCommand("AT+CLVL?\r\n",1000,2,"\r\nOK\r\n","\r\n+CME ERROR:");
   if(answer==1)
   {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\nSim80x_GetLoadVol(%d) <--- OK\r\n",Sim80x.LoadVol);
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_GetLoudVol(%d) <--- OK\r\n",Sim80x.LoudVol);
     #endif    
-    return Sim80x.LoadVol;
+    return Sim80x.LoudVol;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\nSim80x_GetLoadVol() <--- ERROR\r\n");
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_GetLoudVol() <--- ERROR\r\n");
     #endif      
     return 0;  
   }
 }
 //######################################################################################################################
-bool  Sim80x_SetLoadVol(uint8_t Vol_0_to_100)
+bool  Sim80x_SetLoudVol(uint8_t Vol_0_to_100)
 {
   uint8_t answer;
   char str[16];
@@ -276,25 +283,78 @@ bool  Sim80x_SetLoadVol(uint8_t Vol_0_to_100)
   answer=Sim80x_SendAtCommand(str,1000,2,"\r\nOK\r\n","\r\n+CME ERROR:");
   if(answer==1)
   {
-    Sim80x.LoadVol=Vol_0_to_100;
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\nSim80x_SetLoadVol(%d) ---> OK\r\n",Sim80x.LoadVol);
+    Sim80x.LoudVol=Vol_0_to_100;
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_SetLoudVol(%d) ---> OK\r\n",Sim80x.LoudVol);
     #endif    
     return true;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\nSim80x_SetLoadVol(%d) ---> ERROR\r\n",Sim80x.LoadVol);
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_SetLoudVol(%d) ---> ERROR\r\n",Sim80x.LoudVol);
     #endif 
     return false;
   }
 }
 //######################################################################################################################
+bool  Sim80x_SetMicGain(uint8_t Channel_0_to_4,uint8_t Gain_0_to_15)
+{
+   uint8_t answer;
+  char str[32];
+	#if(_SIM80X_Quectel_Mode==0)
+  snprintf(str,sizeof(str),"AT+CMIC=%d,%d\r\n",Channel_0_to_4,Gain_0_to_15);
+	#else
+	snprintf(str,sizeof(str),"AT+QMIC=%d,%d\r\n",Channel_0_to_4,Gain_0_to_15);
+	#endif
+  answer = Sim80x_SendAtCommand(str,1000,1,"\r\nOK\r\n");
+  if(answer == 1)
+  {
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_SetMicGain(%d,%d) ---> OK\r\n",Channel_0_to_4,Gain_0_to_15);
+    #endif  
+    Sim80x_GetMicGain();    
+    return true;
+  }
+  else
+  {
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_SetMicGain(%d,%d) ---> ERROR\r\n",Channel_0_to_4,Gain_0_to_15);
+    #endif     
+    return false;
+  }  
+}
+//######################################################################################################################
+bool  Sim80x_GetMicGain(void)
+{
+  uint8_t answer;
+	#if(_SIM80X_Quectel_Mode==0)
+  answer=Sim80x_SendAtCommand("AT+CMIC?\r\n",1000,2,"\r\nOK\r\n","\r\n+CME ERROR:");
+	#else
+	answer=Sim80x_SendAtCommand("AT+QMIC?\r\n",1000,2,"\r\nOK\r\n","\r\n+CME ERROR:");
+	#endif
+  if(answer==1)
+  {
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_GetMicGain(%d,%d,%d,%d) <--- OK\r\n",Sim80x.MicGainMain,Sim80x.MicGainAux,Sim80x.MicGainMainHandsfree,Sim80x.MicGainAuxHandsfree);   
+    #endif    
+    return Sim80x.LoudVol;
+  }
+  else
+  {
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_GetMicGain() <--- ERROR\r\n");
+    #endif      
+    return 0;  
+  }  
+}
+//######################################################################################################################
+#if(_SIM80X_USE_WAVE==1)
+//######################################################################################################################
 Sim80xWave_t   Sim80x_WaveGetState(void)
 {
   Sim80x_SendAtCommand("AT+CREC?\r\n",1000,1,"\r\n+CREC:");
-  #if (_SIM80X_DEBUG==1)
+  #if(_SIM80X_DEBUG==1)
   printf("\r\nSim80x_WaveGetState(%d) ---> OK\r\n",Sim80x.WaveState);
   #endif   
   return Sim80x.WaveState;
@@ -309,7 +369,7 @@ bool  Sim80x_WaveRecord(uint8_t ID,uint8_t TimeLimitInSecond)
   if(answer == 1)
   {
     Sim80x.WaveState = Sim80xWave_Recording;
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_WaveRecord(Recording) ---> OK\r\n");
     #endif     
     return true;
@@ -317,7 +377,7 @@ bool  Sim80x_WaveRecord(uint8_t ID,uint8_t TimeLimitInSecond)
   else
   {
     Sim80x.WaveState = Sim80xWave_Idle;
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_WaveRecord(Recording) ---> ERROR\r\n");
     #endif     
     return false;
@@ -328,11 +388,11 @@ bool  Sim80x_WavePlay(uint8_t ID)
 {
   uint8_t answer;
   char str[64];
-  snprintf(str,sizeof(str),"AT+CREC=4,\"C:\\User\\%d.amr\",0,%d\r\n",ID,Sim80x.LoadVol);
+  snprintf(str,sizeof(str),"AT+CREC=4,\"C:\\User\\%d.amr\",0,%d\r\n",ID,Sim80x.LoudVol);
   answer = Sim80x_SendAtCommand(str,3000,1,"\r\nOK\r\n");
   if(answer == 1)
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_WavePlay() ---> OK\r\n");
     #endif     
     Sim80x.WaveState = Sim80xWave_Playing;
@@ -340,7 +400,7 @@ bool  Sim80x_WavePlay(uint8_t ID)
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_WavePlay() ---> ERROR\r\n");
     #endif     
     Sim80x.WaveState = Sim80xWave_Idle;
@@ -354,7 +414,7 @@ bool  Sim80x_WaveStop(void)
   answer = Sim80x_SendAtCommand("AT+CREC=5\r\n",1000,2,"\r\nOK\r\n","\r\nERROR\r\n");
   if(answer == 1)
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_WaveStop() ---> OK\r\n");
     #endif     
     Sim80x.WaveState = Sim80xWave_Idle;
@@ -362,7 +422,7 @@ bool  Sim80x_WaveStop(void)
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_WaveStop() ---> ERROR\r\n");
     #endif     
     return false;
@@ -377,62 +437,23 @@ bool  Sim80x_WaveDelete(uint8_t ID)
   answer = Sim80x_SendAtCommand(str,1000,1,"\r\nOK\r\n");
   if(answer == 1)
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_WaveDelete(%d.amr) ---> OK\r\n",ID);
     #endif     
     return true;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\nSim80x_WaveDelete(%d.amr) ---> ERROR\r\n",ID_1_to_20);
     #endif     
     return false;
   }
 }
 //######################################################################################################################
-bool  Sim80x_SetMicGain(uint8_t Channel_0_to_4,uint8_t Gain_0_to_15)
-{
-   uint8_t answer;
-  char str[32];
-  snprintf(str,sizeof(str),"AT+CMIC=%d,%d\r\n",Channel_0_to_4,Gain_0_to_15);
-  answer = Sim80x_SendAtCommand(str,1000,1,"\r\nOK\r\n");
-  if(answer == 1)
-  {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\Sim80x_SetMicGain(%d,%d) ---> OK\r\n",Channel_0_to_4,Gain_0_to_15);
-    #endif  
-    Sim80x_GetMicGain();    
-    return true;
-  }
-  else
-  {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\Sim80x_SetMicGain(%d,%d) ---> ERROR\r\n",Channel_0_to_4,Gain_0_to_15);
-    #endif     
-    return false;
-  }  
-}
+#endif
 //######################################################################################################################
-bool  Sim80x_GetMicGain(void)
-{
-  uint8_t answer;
-  answer=Sim80x_SendAtCommand("AT+CMIC?\r\n",1000,2,"\r\nOK\r\n","\r\n+CME ERROR:");
-  if(answer==1)
-  {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\nSim80x_GetMicGain(%d,%d,%d,%d) <--- OK\r\n",Sim80x.MicGainMain,Sim80x.MicGainAux,Sim80x.MicGainMainHandsfree,Sim80x.MicGainAuxHandsfree);   
-    #endif    
-    return Sim80x.LoadVol;
-  }
-  else
-  {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\Sim80x_GetMicGain() <--- ERROR\r\n");
-    #endif      
-    return 0;  
-  }  
-}
+#if(_SIM80X_USE_TONE==1)
 //######################################################################################################################
 bool  Sim80x_TonePlay(Sim80xTone_t Sim80xTone,uint32_t  Time_ms)
 {
@@ -442,15 +463,15 @@ bool  Sim80x_TonePlay(Sim80xTone_t Sim80xTone,uint32_t  Time_ms)
   answer = Sim80x_SendAtCommand(str,1000,2,"\r\nOK\r\n","\r\n+CME ERROR\r\n");
   if(answer == 1)
   {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\Sim80x_TonePlay(%d,%d) ---> OK\r\n",Sim80xTone,Time_ms);
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_TonePlay(%d,%d) ---> OK\r\n",Sim80xTone,Time_ms);
     #endif     
     return true;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\Sim80x_TonePlay() ---> ERROR\r\n");
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_TonePlay() ---> ERROR\r\n");
     #endif     
     return false;
   }     
@@ -462,14 +483,14 @@ bool  Sim80x_ToneStop(void)
   answer=Sim80x_SendAtCommand("AT+STTONE=0\r\n",1000,2,"\r\nOK\r\n","\r\n+CME ERROR:");
   if(answer==1)
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\Sim80x_ToneStop() <--- OK\r\n"); 
     #endif    
     return true;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\Sim80x_ToneStop() <--- ERROR\r\n");
     #endif      
     return false;  
@@ -482,14 +503,14 @@ uint8_t Sim80x_GetToneVol(void)
   answer=Sim80x_SendAtCommand("AT+SNDLEVEL?\r\n",1000,2,"\r\nOK\r\n","\r\n+CME ERROR:");
   if(answer==1)
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\Sim80x_GetToneVol(%d) <--- OK\r\n",Sim80x.ToneVol);   
     #endif    
     return Sim80x.ToneVol;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\Sim80x_GetToneVol() <--- ERROR\r\n");
     #endif      
     return 0;  
@@ -505,7 +526,7 @@ bool  Sim80x_SetToneVol(uint8_t Vol_0_to_100)
   answer = Sim80x_SendAtCommand(str,1000,2,"\r\nOK\r\n","\r\n+CME ERROR\r\n");
   if(answer == 1)
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\Sim80x_SetToneVol(%d) ---> OK\r\n",Vol_0_to_100);
     #endif 
     Sim80x_GetToneVol();    
@@ -513,7 +534,7 @@ bool  Sim80x_SetToneVol(uint8_t Vol_0_to_100)
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\Sim80x_SetToneVol(%d) ---> ERROR\r\n",Vol_0_to_100);
     #endif     
     return false;
@@ -529,7 +550,7 @@ bool  Sim80x_SetRingTone(uint8_t Tone_0_to_19,bool Save)
   answer = Sim80x_SendAtCommand(str,1000,2,"\r\nOK\r\n","\r\n+CME ERROR\r\n");
   if(answer == 1)
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\Sim80x_SetRingTone(%d) ---> OK\r\n",Tone_0_to_19);
     #endif    
     if(Save==true)
@@ -538,12 +559,14 @@ bool  Sim80x_SetRingTone(uint8_t Tone_0_to_19,bool Save)
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
+    #if(_SIM80X_DEBUG==1)
     printf("\r\Sim80x_SetRingTone(%d) ---> ERROR\r\n",Tone_0_to_19);
     #endif     
     return false;
   }       
 } 
+//######################################################################################################################
+#endif
 //######################################################################################################################
 bool  Sim80x_SetEchoParameters(uint8_t  SelectMic_0_or_1,uint16_t NonlinearProcessingRemove,uint16_t AcousticEchoCancellation,uint16_t NoiseReduction,uint16_t NoiseSuppression)
 {
@@ -553,16 +576,16 @@ bool  Sim80x_SetEchoParameters(uint8_t  SelectMic_0_or_1,uint16_t NonlinearProce
   answer = Sim80x_SendAtCommand(str,1000,2,"\r\nOK\r\n","\r\n+CME ERROR\r\n");
   if(answer == 1)
   {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\Sim80x_SetEchoParameters() ---> OK\r\n");
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_SetEchoParameters() ---> OK\r\n");
     #endif   
     Sim80x_SendAtCommand("AT+ECHO?\r\n",200,1,"\r\nOK\r\n");    
     return true;
   }
   else
   {
-    #if (_SIM80X_DEBUG==1)
-    printf("\r\Sim80x_SetEchoParameters() ---> ERROR\r\n");
+    #if(_SIM80X_DEBUG==1)
+    printf("\r\nSim80x_SetEchoParameters() ---> ERROR\r\n");
     #endif     
     Sim80x_SendAtCommand("AT+ECHO?\r\n",200,1,"\r\nOK\r\n");
     return false;
@@ -573,7 +596,7 @@ bool  Sim80x_SetEchoParameters(uint8_t  SelectMic_0_or_1,uint16_t NonlinearProce
 //######################################################################################################################
 void	Sim80x_Init(osPriority Priority)
 {
-  #if (_SIM80X_USE_POWER_KEY==1)  
+  #if(_SIM80X_USE_POWER_KEY==1)  //@FixMe what if the module is already on ?
   HAL_GPIO_WritePin(_SIM80X_POWER_KEY_GPIO,_SIM80X_POWER_KEY_PIN,GPIO_PIN_SET);
   #else
   osDelay(1000);
@@ -597,6 +620,9 @@ void	Sim80x_Init(osPriority Priority)
 void  Sim80x_BufferProcess(void)
 {
   char      *strStart,*str1,*str2;
+	#if(_SIM80X_USE_BLUETOOTH==1)
+	//char *str3,*tmp_str;
+	#endif
   int32_t   tmp_int32_t;
   
   strStart = (char*)&Sim80x.UsartRxBuffer[0];  
@@ -731,7 +757,11 @@ void  Sim80x_BufferProcess(void)
       memset(Sim80x.Gsm.MsgDate,0,sizeof(Sim80x.Gsm.MsgDate));
       memset(Sim80x.Gsm.MsgNumber,0,sizeof(Sim80x.Gsm.MsgNumber));
       memset(Sim80x.Gsm.MsgTime,0,sizeof(Sim80x.Gsm.MsgTime));
-      tmp_int32_t = sscanf(str1,"\r\n+CMGR: %*[^,],\"%[^\"]\",%*[^,],\"%[^,],%[^+-]%*d\"\r\n%[^\r]s\r\nOK\r\n",Sim80x.Gsm.MsgNumber,Sim80x.Gsm.MsgDate,Sim80x.Gsm.MsgTime,Sim80x.Gsm.Msg);      
+			#if(_SIM80X_Quectel_Mode==0)
+				tmp_int32_t = sscanf(str1,"\r\n+CMGR: %*[^,],\"%[^\"]\",%*[^,],\"%[^,],%[^+-]%*d\"\r\n%[^\r]s\r\nOK\r\n",Sim80x.Gsm.MsgNumber,Sim80x.Gsm.MsgDate,Sim80x.Gsm.MsgTime,Sim80x.Gsm.Msg);
+			#else
+				tmp_int32_t = sscanf(str1,"\r\n+CMGR: %*[^,],\"%[^\"]\",%*[^,],\"%[^ ] %[^+-]%*d\"\r\n%[^\r]s\r\nOK\r\n",Sim80x.Gsm.MsgNumber,Sim80x.Gsm.MsgDate,Sim80x.Gsm.MsgTime,Sim80x.Gsm.Msg);      
+			#endif
       if(tmp_int32_t == 4)
         Sim80x.Gsm.MsgReadIsOK=1;
       else
@@ -756,7 +786,7 @@ void  Sim80x_BufferProcess(void)
   {
     str1 = strchr(str1,':');
     str1++;
-    Sim80x.LoadVol = atoi(str1);    
+    Sim80x.LoudVol = atoi(str1);    
   }
   //################################################## 
   str1 = strstr(strStart,"\r\n+CMTI:");
@@ -801,12 +831,21 @@ void  Sim80x_BufferProcess(void)
     }
   }
   //##################################################  
-  str1 = strstr(strStart,"\nAT+GSN\r");
+	#if(_SIM80X_Quectel_Mode==0)
+  str1 = strstr(strStart,"\nAT+GSN\r"); 			//@FixMe why is this difference \n \r
   if(str1!=NULL)
   {
     sscanf(str1,"\nAT+GSN\r\r\n%[^\r]",Sim80x.IMEI);    
   }
+	#else
+	str1 = strstr(strStart,"AT+GSN");
+  if(str1!=NULL)
+  {
+    sscanf(str1,"AT+GSN\r\n%[^\r]",Sim80x.IMEI);    //for whatever reason there are two \r's after AT+GSN in keil debug but this still works.
+  }
+	#endif
   //##################################################  
+	#if(_SIM80X_USE_WAVE==1)
   str1 = strstr(strStart,"\r\n+CREC: ");
   if(str1!=NULL)
   {
@@ -814,15 +853,21 @@ void  Sim80x_BufferProcess(void)
     str1++;
     Sim80x.WaveState = (Sim80xWave_t)atoi(str1);
   }
+	#endif
   //##################################################  
+	#if(_SIM80X_Quectel_Mode==0)
   str1 = strstr(strStart,"\r\n+CMIC: ");
+	#else
+	str1 = strstr(strStart,"\r\n+QMIC: ");
+	#endif
   if(str1!=NULL)
   {
+		#if(_SIM80X_Quectel_Mode==0)
     while(strchr(str1,'(')!=NULL)
     {
       str1 = strchr(str1,'(');
       str1++;
-      tmp_int32_t = atoi(str1);
+      tmp_int32_t = atoi(str1); //channel
       switch(tmp_int32_t)
       {
         case 0:
@@ -846,9 +891,21 @@ void  Sim80x_BufferProcess(void)
           Sim80x.MicGainAuxHandsfree = atoi(str1);
         break;        
       }
-    }    
+    } 
+		#else
+			str1 = strchr(str1,' ');				 					//First one is empty space
+			str1++;
+			Sim80x.MicGainMain = atoi(str1); 					//Normal mic
+			str1 = strchr(str1,',');
+			str1++;
+			Sim80x.MicGainMainHandsfree = atoi(str1); //Headset mic
+			str1 = strchr(str1,',');
+			str1++;
+			Sim80x.MicGainAux = atoi(str1); 					//Loudspeaker mic
+		#endif		
   }  
   //##################################################  
+	#if(_SIM80X_USE_TONE==1)
   str1 = strstr(strStart,"\r\n+SNDLEVEL:");
   if(str1!=NULL)
   {
@@ -872,6 +929,7 @@ void  Sim80x_BufferProcess(void)
       }
     }
   }
+	#endif
   //##################################################  
   str1 = strstr(strStart,"\r\n+ECHO: ");
   if(str1!=NULL)
@@ -888,23 +946,36 @@ void  Sim80x_BufferProcess(void)
   //##################################################  
   //##################################################   
   //################################################## 
-  #if( _SIM80X_USE_BLUETOOTH==1)  
-  //################################################## 
+  #if(_SIM80X_USE_BLUETOOTH==1)
+  //##################################################
+	#if(_SIM80X_Quectel_Mode==0)
   str1 = strstr(strStart,"\r\n+BTHOST:");
+	#else
+	str1 = strstr(strStart,"\r\n+QBTNAME:");
+	#endif
   if(str1!=NULL)
   {
+		#if(_SIM80X_Quectel_Mode==0)
     sscanf(str1,"\r\n+BTHOST: %[^,],%[^\r]",Sim80x.Bluetooth.HostName,Sim80x.Bluetooth.HostAddress);    
-  }  
-  //##################################################  
+		#else
+		sscanf(str1,"\r\n+QBTNAME: %[^\r]",Sim80x.Bluetooth.HostName);    
+		#endif
+  }
+  //##################################################
+	#if(_SIM80X_Quectel_Mode==0)
   str1 = strstr(strStart,"\r\n+BTSTATUS:");
+	#else
+	str1 = strstr(strStart,"\r\n+QBTSTATE:");
+	#warning "Bluetooth for Quectel is not complete here"
+	#endif
   if(str1!=NULL)
   {
     str1 = strchr(str1,':');
     str1++;
     Sim80x.Bluetooth.Status = (BluetoothStatus_t)atoi(str1);
-    
+    #if(_SIM80X_Quectel_Mode==0) 
     str3 = strstr(str1,"\r\nOK\r\n");
-    CheckAnotherConnectedProfile:
+    CheckAnotherConnectedProfile: //@FixMe --> could implement a for loop ?
     str2 = strstr(str1,"\r\nC:");
     if((str2 != NULL) && (str2 <str3) && (str2 > str1))
     {
@@ -940,6 +1011,7 @@ void  Sim80x_BufferProcess(void)
       str1+=5;
       goto CheckAnotherConnectedProfile;
     }    
+		#endif //Quectel tobe fixed
   }  
   //##################################################  
   str1 = strstr(strStart,"\r\n+BTPAIRING:");
@@ -959,13 +1031,23 @@ void  Sim80x_BufferProcess(void)
     
   }
   //##################################################  
-  str1 = strstr(strStart,"\r\n+BTCONNECT:");
+  #if(_SIM80X_Quectel_Mode==0)
+	str1 = strstr(strStart,"\r\n+BTCONNECT:");
+	#else
+	str1 = strstr(strStart,"\r\n+QBTCONN:");
+	#warning "Bluetooth for Quectel is not complete here"
+	#endif
   if(str1!=NULL)
   {
     Sim80x.Bluetooth.ConnectedID=0;
     memset(Sim80x.Bluetooth.ConnectedAddress,0,sizeof(Sim80x.Bluetooth.ConnectedAddress));
     memset(Sim80x.Bluetooth.ConnectedName,0,sizeof(Sim80x.Bluetooth.ConnectedName));
+		#if(_SIM80X_Quectel_Mode==0)
     tmp_int32_t = sscanf(str1,"\r\n+BTCONNECT: %hhd,\"%[^\"]\",%[^,],%[^\r]",&Sim80x.Bluetooth.ConnectedID,Sim80x.Bluetooth.ConnectedName,Sim80x.Bluetooth.ConnectedAddress,tmp_str);
+		#else
+		tmp_int32_t = sscanf(str1,"\r\n+QBTCONN: %hhd,\"%[^\"]\",%[^,],%[^\r]",&Sim80x.Bluetooth.ConnectedID,Sim80x.Bluetooth.ConnectedName,Sim80x.Bluetooth.ConnectedAddress);//@FixMe ,tmp_str);
+		#endif
+		#if(_SIM80X_Quectel_Mode==0) 
     if(strcmp(tmp_str,"\"HFP\"")==0)
       tmp_int32_t = BluetoothProfile_HSP_HFP;
     else if(strcmp(tmp_str,"\"HSP\"")==0)
@@ -983,7 +1065,7 @@ void  Sim80x_BufferProcess(void)
     else if(strcmp(tmp_str,"\"SPP\"")==0)
       tmp_int32_t = BluetoothProfile_SSP;
     else tmp_int32_t = BluetoothProfile_NotSet;
-    
+    #endif
     for(uint8_t i=0 ;i<sizeof(Sim80x.Bluetooth.ConnectedProfile) ; i++)
     {
       if(Sim80x.Bluetooth.ConnectedProfile[i]==(BluetoothProfile_t)tmp_int32_t)
@@ -999,6 +1081,8 @@ void  Sim80x_BufferProcess(void)
   str1 = strstr(strStart,"\r\n+BTCONNECTING:");
   if(str1!=NULL)
   {
+		#warning "Bluetooth for Quectel is not complete here"
+		#if(_SIM80X_Quectel_Mode==0) 
     memset(tmp_str,0,sizeof(tmp_str));
     str1 = strchr(str1,',');
     str1++;
@@ -1022,6 +1106,7 @@ void  Sim80x_BufferProcess(void)
     else if(strcmp(tmp_str,"\"SPP\"")==0)
       Sim80x.Bluetooth.ConnectingRequestProfile = BluetoothProfile_SSP;
     else Sim80x.Bluetooth.ConnectingRequestProfile = BluetoothProfile_NotSet;
+		#endif
   }
   //##################################################  
   str1 = strstr(strStart,"\r\n+BTDISCONN:");
@@ -1067,7 +1152,7 @@ void  Sim80x_BufferProcess(void)
   //##################################################  
   //##################################################  
   //##################################################
-  #if (_SIM80X_USE_GPRS==1)
+  #if(_SIM80X_USE_GPRS==1)
   //##################################################  
   str1 = strstr(strStart,"\r\n+CGDCONT:");
   if(str1!=NULL)
@@ -1240,7 +1325,7 @@ void  Sim80x_BufferProcess(void)
   //##################################################
   //---       Buffer Process
   //##################################################
-  #if (_SIM80X_DEBUG==2)
+  #if(_SIM80X_DEBUG==2)
   printf("%s",strStart);
   #endif
   Sim80x.UsartRxIndex=0;
@@ -1253,12 +1338,12 @@ void  Sim80x_BufferProcess(void)
 //######################################################################################################################
 void StartSim80xBuffTask(void const * argument)
 { 
-  while(1)
+  for(;;)
   {
-    if( ((Sim80x.UsartRxIndex>4) && (HAL_GetTick()-Sim80x.UsartRxLastTime > 50)))
+    if( ((Sim80x.UsartRxIndex>4) && (HAL_GetTick()-Sim80x.UsartRxLastTime > 50)) && __HAL_UART_GET_FLAG(&_SIM80X_USART,UART_FLAG_IDLE))  //@todo add Rx Idle and calculate exact time instead of 50 for different baudrates
     {
-      Sim80x.BufferStartTime = HAL_GetTick();      
-      Sim80x_BufferProcess();      
+      Sim80x.BufferStartTime = HAL_GetTick();
+      Sim80x_BufferProcess();
       Sim80x.BufferExeTime = HAL_GetTick()-Sim80x.BufferStartTime;
     }
     osDelay(10);
@@ -1268,14 +1353,14 @@ void StartSim80xBuffTask(void const * argument)
 void StartSim80xTask(void const * argument)
 { 
   uint32_t TimeForSlowRun=0;
-  #if( _SIM80X_USE_GPRS==1)
+  #if(_SIM80X_USE_GPRS==1)
   uint32_t TimeForSlowRunGPRS=0;
   #endif
   uint8_t UnreadMsgCounter=1;
-  while(1)
+  for(;;)
   {    
     //###########################################
-    #if( _SIM80X_USE_BLUETOOTH==1)
+    #if(_SIM80X_USE_BLUETOOTH==1)
     //###########################################
     if(Sim80x.Bluetooth.SPPLen >0 )
     {      
@@ -1304,7 +1389,7 @@ void StartSim80xTask(void const * argument)
     #endif
     //###########################################
     //###########################################
-    #if( _SIM80X_USE_GPRS==1)
+    #if(_SIM80X_USE_GPRS==1)
     //###########################################
     if(HAL_GetTick()-TimeForSlowRunGPRS > 5000)
     {
@@ -1365,7 +1450,7 @@ void StartSim80xTask(void const * argument)
     //###########################################
     Gsm_User(HAL_GetTick());
     //###########################################
-    osDelay(100);
+    osDelay(100); //@FixMe why 100?
     
   }    
 }

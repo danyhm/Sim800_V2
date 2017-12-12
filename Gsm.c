@@ -21,7 +21,7 @@ bool  Gsm_Ussd(char *send,char *receive)
 //######################################################################################################
 bool  Gsm_CallAnswer(void)
 {
-  uint8_t answer = Sim80x_SendAtCommand("ATA\r\n",20000,2,"\r\nOK\r\n","\r\nERROR\r\n");
+  uint8_t answer = Sim80x_SendAtCommand("ATA\r\n",20000,2,"\r\nOK\r\n","\r\nERROR\r\n");	//@todo NO CARRIER answer
   if(answer == 1)
   {
     Sim80x.Gsm.GsmVoiceStatus = GsmVoiceStatus_IAnswerTheCall;
@@ -33,7 +33,7 @@ bool  Gsm_CallAnswer(void)
 //######################################################################################################
 bool  Gsm_CallDisconnect(void)
 {
-  uint8_t answer = Sim80x_SendAtCommand("AT+HVOIC\r\n",20000,2,"AT+HVOIC\r\r\nOK\r\n","AT+HVOIC\r\r\nERROR\r\n");
+  uint8_t answer = Sim80x_SendAtCommand("ATH\r\n",20000,2,"ATH\r\r\nOK\r\n","ATH\r\r\nERROR\r\n"); //@TODO no error in datasheet? datamode ?
   if(answer == 1)
   {
     Sim80x.Gsm.GsmVoiceStatus = GsmVoiceStatus_Idle;
@@ -157,7 +157,7 @@ bool  Gsm_MsgSetMemoryLocation(GsmMsgMemory_t GsmMsgMemory)
 //######################################################################################################
 GsmTECharacterSet_t     Gsm_MsgGetCharacterFormat(void)
 {
-  Sim80x.Gsm.TeCharacterFormat = (GsmTECharacterSet_t)Sim80x_SendAtCommand("AT+CSCS?\r\n",1000,7,"\r\n+CSCS: \"GSM\"\r\n","\r\n+CSCS: \"UCS2\"\r\n","\r\n+CSCS: \"IRA\"\r\n","\r\n+CSCS: \"HEX\"\r\n","\r\n+CSCS: \"PCCP\"\r\n","\r\n+CSCS: \"PCDN\"\r\n","\r\n+CSCS: \"8859-1\"\r\n");
+  Sim80x.Gsm.TeCharacterFormat = (GsmTECharacterSet_t)Sim80x_SendAtCommand("AT+CSCS?\r\n",1000,7,"\r\n+CSCS: \"GSM\"\r\n","\r\n+CSCS: \"UCS2\"\r\n","\r\n+CSCS: \"IRA\"\r\n","\r\n+CSCS: \"HEX\"\r\n","\r\n+CSCS: \"PCCP\"\r\n","\r\n+CSCS: \"PCDN\"\r\n","\r\n+CSCS: \"8859-1\"\r\n"); //@TODO fix for qtel
   return Sim80x.Gsm.TeCharacterFormat;
 }
 //######################################################################################################
@@ -285,17 +285,21 @@ bool  Gsm_MsgSendText(char *Number,char *msg)
   Sim80x.Gsm.MsgSent=0;
   if(Sim80x.Gsm.MsgFormat != GsmMsgFormat_Text)
     Gsm_MsgSetFormat(GsmMsgFormat_Text);
+	if(Sim80x.Gsm.TeCharacterFormat != GsmTECharacterSet_GSM)
+		Gsm_MsgSetCharacterFormat(GsmTECharacterSet_GSM);
+	if(Sim80x.Gsm.MsgTextModeParameterFo!=17 || Sim80x.Gsm.MsgTextModeParameterVp!=167 || Sim80x.Gsm.MsgTextModeParameterPid!=0 || Sim80x.Gsm.MsgTextModeParameterDcs!=0)
+		Gsm_MsgSetTextModeParameter(17,167,0,0);	 		//make sure we're in right scheme
   snprintf(str,sizeof(str),"AT+CMGS=\"%s\"\r\n",Number);
   answer = Sim80x_SendAtCommand(str,10000,1,"\r\r\n> ");
   osDelay(100);
   if(answer != 1)
   {
-    snprintf(str,sizeof(str),"%c",27);
+    snprintf(str,sizeof(str),"%c",ESC_char_Dec);
     Sim80x_SendString(str);
     return false;
   }
   strcpy(Sim80x.Gsm.MsgSentNumber,Number);
-  snprintf(str,sizeof(str),"%s%c",msg,26);
+  snprintf(str,sizeof(str),"%s%c",msg,SUB_char_Dec);
   Sim80x_SendString(str);
   while(Timeout>0)
   {
@@ -304,9 +308,119 @@ bool  Gsm_MsgSendText(char *Number,char *msg)
     if(Sim80x.Gsm.MsgSent == 1)
       return true;
   }
-  return false;      
+  return false;
 }
 //######################################################################################################
-
+bool  Gsm_MsgSendTextUnicode(char *Number,char *msg)
+{
+	uint8_t answer;
+  uint8_t Timeout=60;
+  char str[128];
+	char *ucs2num , *ucs2msg;	//alternative is to dedicated a known amount of ram for each instead of using calloc
+  Sim80x.Gsm.MsgSent=0;
+  if(Sim80x.Gsm.MsgFormat != GsmMsgFormat_Text)
+    Gsm_MsgSetFormat(GsmMsgFormat_Text);
+	if(Sim80x.Gsm.TeCharacterFormat != GsmTECharacterSet_UCS2)
+		Gsm_MsgSetCharacterFormat(GsmTECharacterSet_UCS2);
+	if(Sim80x.Gsm.MsgTextModeParameterFo!=17 || Sim80x.Gsm.MsgTextModeParameterVp!=167 || Sim80x.Gsm.MsgTextModeParameterPid!=0 || Sim80x.Gsm.MsgTextModeParameterDcs!=8)
+		Gsm_MsgSetTextModeParameter(17,167,0,8);	 		//make sure we're in right scheme
+	//Make Number USC2 format
+	answer = Utf8toUcs2(&ucs2num,Number);
+	if(answer!=true)
+	{
+		Gsm_MsgSetCharacterFormat(GsmTECharacterSet_GSM); //restore Character set
+		return false;
+	}
+	//
+	snprintf(str,sizeof(str),"AT+CMGS=\"%s\"\r\n",ucs2num);
+  answer = Sim80x_SendAtCommand(str,10000,1,"\r\r\n> ");
+  osDelay(100);
+	if(answer != 1)
+  {
+    snprintf(str,sizeof(str),"%c",ESC_char_Dec);
+    Sim80x_SendString(str);
+		free(ucs2num);
+		Gsm_MsgSetCharacterFormat(GsmTECharacterSet_GSM); //restore Character set
+    return false;
+  }
+	free(ucs2num);
+	//Make msg USC2 format
+	answer = Utf8toUcs2(&ucs2msg,msg);
+	if(answer != true)
+  {
+    snprintf(str,sizeof(str),"%c",ESC_char_Dec);
+    Sim80x_SendString(str);
+		Gsm_MsgSetCharacterFormat(GsmTECharacterSet_GSM); //restore Character set
+    return false;
+  }
+	//
+	strcpy(Sim80x.Gsm.MsgSentNumber,Number);
+	snprintf(str,sizeof(str),"%s%c",ucs2msg,SUB_char_Dec); //msg must be USC2
+	free(ucs2msg);
+  Sim80x_SendString(str);
+	while(Timeout>0)
+  {
+    osDelay(1000);
+    Timeout--;
+    if(Sim80x.Gsm.MsgSent == 1)
+		{
+			Gsm_MsgSetCharacterFormat(GsmTECharacterSet_GSM); //restore Character set
+      return true;
+		}
+  }
+	Gsm_MsgSetCharacterFormat(GsmTECharacterSet_GSM); //restore Character set
+  return false;
+}
 //######################################################################################################
-
+bool Utf8toUcs2(char **des,const char *str)
+{
+	uint16_t i = 0,j = 0,c = 0,v = 0;
+	uint16_t len = strlen(str);
+	//--- Count the length needed for calloc
+	while(i < len)
+	{
+		v = (uint8_t)str[i];
+		if(	v <= 0x7F	){
+			j += 4;
+			i += 1;}
+		else if( v <= 0xDF ){
+			j += 4;
+			i += 2;}
+		else if( v <= 0xEF )
+			i += 3;
+		else if( v <= 0xF4 )
+			i += 4;
+	}
+	//---
+	*des = calloc(j+1, sizeof(char));
+	if (*des==NULL) 
+		return false;
+	//
+  i = 0;
+	j = 0;
+	c = 0;
+	v = 0;
+	//
+	while(i < len)
+	{
+		v = (uint8_t)str[i];
+		if(	v <= 0x7F	){
+			c = (uint16_t)v;
+			sprintf(*des + j, "%04X", c); 
+			j += 4;
+			i += 1;}
+		else if( v <= 0xDF ){
+			c  = ((uint16_t)(v  & 0x1F)) << 6;
+			v  =  (uint8_t)str[i+1];
+			c |=  (uint16_t)(v & 0x3F);
+			sprintf(*des + j, "%04X", c); 
+			j += 4;
+			i += 2;}
+		else if( v <= 0xEF )
+			i += 3;
+		else if( v <= 0xF4 )
+			i += 4;
+	}
+	return true;
+}
+//######################################################################################################
