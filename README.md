@@ -24,7 +24,11 @@ PowerKey connect to Sim800 Power Key.(if Needed,See Sim80xConfig.h)
 7) call  Sim80x_Init(osPriorityLow) on your app.
 <br />
 8) Config your app on Sim80xUser.c,GsmUser.c,BlutoothUser.c,GprsUser.c.
-
+<br />
+<br />
 Notes:
+<br />
 1- To use UnicodeText you must supply the msg in utf8 format. in you IDE look for an option to save the file as utf8 instead of ANSI
+<br />
 2- Make sure you have enough FREERTOS heap or else the tasks would fail to be created.
+<br />
