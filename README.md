@@ -1,3 +1,6 @@
+***This repository is no longer maintained***
+A better and well documented library for gsm written from scratch https://github.com/danyhm/lib_gsm
+
 # Sim800 series library (Forked from nimaltd)
 <br />
 I hope use it and enjoy.
